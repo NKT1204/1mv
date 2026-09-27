@@ -1,0 +1,1221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AapBolo — running seams</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Comfortaa:wght@300;400;500;600;700&family=Source+Sans+3:wght@300;400;500;600&family=Anek+Devanagari:wght@400;500;600&family=Anek+Bangla:wght@400;500;600&family=Anek+Tamil:wght@400;500;600&family=Anek+Telugu:wght@400;500;600&family=Anek+Kannada:wght@400;500;600&family=Anek+Gujarati:wght@400;500;600&family=Anek+Malayalam:wght@400;500;600&family=Anek+Gurmukhi:wght@400;500;600&family=Anek+Odia:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#141118; --soft:#56505F; --faint:#8C8694; --rule:#E4E1E9; --tint:#F7F6F9;
+  --sans:'Source Sans 3',system-ui,sans-serif;
+  --display:'Comfortaa',system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:#fff;color:var(--ink);font-family:var(--sans);font-weight:400;
+  -webkit-font-smoothing:antialiased}
+h1,h2,h3,h4{margin:0;font-weight:600;letter-spacing:-.015em}
+p{margin:0;line-height:1.7}
+
+/* ============================================================
+   LOADER
+   The name and "for Education" are STACKED, not inline. The name
+   sits in a fixed-height box so a taller script cannot push
+   anything down, and "for Education" is centred on its own line
+   below — so it never moves, and both stay centred whatever the
+   name's width. A single line cannot do both at once.
+   ============================================================ */
+#loader{position:fixed;inset:0;z-index:300;background:#fff;display:flex;
+  flex-direction:column;align-items:center;justify-content:center;
+  transition:opacity .8s ease;cursor:pointer;padding:0 24px}
+#loader.gone{opacity:0;pointer-events:none}
+.lstack{display:flex;flex-direction:column;align-items:center;width:100%}
+.lnamebox{height:clamp(56px,11vw,124px);display:flex;align-items:center;
+  justify-content:center;width:100%;overflow:hidden}
+#lname{font-family:var(--display);font-weight:700;letter-spacing:-.02em;
+  line-height:1;white-space:nowrap;opacity:0;transition:opacity .34s ease;
+  display:block;text-align:center}
+#lname.on{opacity:1}
+#lfor{font-family:var(--display);font-weight:400;color:var(--soft);
+  font-size:clamp(17px,3.4vw,34px);letter-spacing:.01em;line-height:1;
+  margin-top:clamp(10px,1.6vw,18px);opacity:0;transition:opacity .7s ease;
+  white-space:nowrap}
+#lfor.on{opacity:1}
+#lmeasure{position:absolute;left:-9999px;top:0;visibility:hidden;white-space:nowrap;
+  font-family:var(--display);font-weight:700;letter-spacing:-.02em;line-height:1}
+.skip{position:fixed;bottom:26px;left:50%;transform:translateX(-50%);
+  font-family:var(--sans);font-size:11px;letter-spacing:.2em;text-transform:uppercase;
+  color:var(--faint);opacity:0;transition:opacity .5s ease}
+.skip.on{opacity:1}
+
+.urlbar{position:fixed;bottom:0;left:0;right:0;z-index:200;background:#19161D;color:#B7B0C0;
+  font-family:ui-monospace,Menlo,monospace;font-size:11.5px;padding:7px 14px;
+  display:flex;gap:10px;align-items:center}
+.urlbar b{color:#fff;font-weight:400}
+.urlbar span{color:#6C6576;margin-left:auto}
+
+/* ============================================================ LANDING */
+#landing{position:fixed;inset:0;z-index:10;display:none}
+#landing.on{display:block}
+#weave{position:absolute;inset:0;width:100%;height:100%;display:block}
+
+.centre{position:absolute;inset:0;z-index:3;display:flex;align-items:center;
+  justify-content:center;padding:0 20px;pointer-events:none}
+.plate{text-align:center;pointer-events:auto;width:min(92vw,520px);
+  padding:clamp(24px,3.6vw,40px) clamp(24px,4vw,46px);position:relative;isolation:isolate}
+/* the stitching runs on underneath — it just softens off so the count stays legible */
+.plate::before{content:"";position:absolute;inset:-16% -12%;z-index:-1;pointer-events:none;
+  background:radial-gradient(ellipse at 50% 46%,
+    rgba(255,255,255,.98) 0%, rgba(255,255,255,.95) 38%,
+    rgba(255,255,255,.72) 58%, rgba(255,255,255,0) 76%)}
+.stem{font-family:var(--sans);font-size:clamp(15px,2vw,20px);font-weight:400;
+  color:var(--ink);margin-bottom:clamp(16px,2.4vw,26px)}
+.stem em{font-style:normal;letter-spacing:.02em}
+.count{font-family:var(--display);font-size:clamp(46px,9.6vw,112px);font-weight:400;
+  line-height:1;letter-spacing:-.02em;font-variant-numeric:tabular-nums;
+  position:relative;display:inline-block}
+.plus{position:absolute;right:-.46em;top:.02em;font-size:.2em;font-weight:500;
+  color:var(--soft);opacity:0}
+.plus.on{animation:pop 1.7s ease-out}
+@keyframes pop{0%{opacity:0;transform:translateY(6px)}16%{opacity:.9;transform:translateY(0)}
+  100%{opacity:0;transform:translateY(-20px)}}
+.clab{font-family:var(--sans);font-size:clamp(14px,1.8vw,19px);font-weight:500;
+  letter-spacing:.34em;text-transform:uppercase;color:var(--ink);
+  margin-top:clamp(10px,1.6vw,16px);padding-left:.34em}
+.cta{margin-top:clamp(22px,3.2vw,34px)}
+
+.corner{position:absolute;z-index:5}
+.tl{top:20px;left:22px}.tr{top:20px;right:22px}
+.bl{bottom:20px;left:22px}.br{bottom:20px;right:22px}
+.chip{font-family:var(--sans);font-size:13.5px;padding:8px 15px;border:1px solid var(--rule);
+  background:#fff;border-radius:5px;cursor:pointer;color:var(--ink);
+  display:inline-flex;align-items:center;gap:7px;white-space:nowrap}
+.chip:hover{border-color:var(--faint)}
+.chip.quiet{font-size:12.5px;color:var(--soft);padding:7px 12px}
+.btn{font-family:var(--display);font-size:15px;font-weight:500;padding:13px 30px;
+  border-radius:999px;cursor:pointer;border:1px solid var(--ink);background:var(--ink);
+  color:#fff;display:inline-block;text-align:center}
+.btn.ghost{background:transparent;color:var(--ink)}
+.btn.sm{font-size:14px;padding:10px 22px}
+.btn:disabled{opacity:.32;cursor:not-allowed}
+
+.legend{background:#fff;border:1px solid var(--rule);border-radius:7px;padding:10px 14px}
+.keys{display:flex;gap:15px;flex-wrap:nowrap;white-space:nowrap}
+.ki{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--soft)}
+.ki i{width:11px;height:11px;border-radius:50%;display:block;flex:0 0 auto}
+.ratio{font-size:11px;color:var(--faint);margin-top:9px;padding-top:8px;
+  border-top:1px solid var(--rule);letter-spacing:.01em}
+
+/* ---------- the callout ---------- */
+.quote{position:fixed;z-index:35;width:min(310px,70vw);background:#fff;
+  border:1px solid var(--rule);border-radius:10px;padding:14px 16px;
+  box-shadow:0 5px 16px -7px rgba(20,10,40,.20);
+  opacity:0;transition:opacity .5s ease;pointer-events:none}
+.quote.on{opacity:1}
+.quote p{margin:0 0 9px;font-size:15px;line-height:1.5}
+.quote .m{font-size:12px;color:var(--faint);display:flex;align-items:center;gap:7px}
+.quote .m i{width:10px;height:10px;border-radius:50%;display:block;flex:0 0 auto}
+.quote::before,.quote::after{content:"";position:absolute;width:0;height:0;border:10px solid transparent}
+.quote.n-bottom::before{top:100%;left:var(--nx);margin-left:-10px;border-bottom:0;border-top-color:var(--rule)}
+.quote.n-bottom::after{top:calc(100% - 1.5px);left:var(--nx);margin-left:-10px;border-bottom:0;border-top-color:#fff}
+.quote.n-top::before{bottom:100%;left:var(--nx);margin-left:-10px;border-top:0;border-bottom-color:var(--rule)}
+.quote.n-top::after{bottom:calc(100% - 1.5px);left:var(--nx);margin-left:-10px;border-top:0;border-bottom-color:#fff}
+.quote.n-left::before{right:100%;top:var(--ny);margin-top:-10px;border-left:0;border-right-color:var(--rule)}
+.quote.n-left::after{right:calc(100% - 1.5px);top:var(--ny);margin-top:-10px;border-left:0;border-right-color:#fff}
+.quote.n-right::before{left:100%;top:var(--ny);margin-top:-10px;border-right:0;border-left-color:var(--rule)}
+.quote.n-right::after{left:calc(100% - 1.5px);top:var(--ny);margin-top:-10px;border-right:0;border-left-color:#fff}
+
+.tip{position:fixed;z-index:50;max-width:300px;background:#fff;border:1px solid var(--rule);
+  border-radius:8px;box-shadow:0 5px 16px -7px rgba(20,10,40,.22);padding:13px 15px;
+  opacity:0;pointer-events:none;transition:opacity .13s}
+.tip p{margin:0 0 8px;font-size:14.5px;line-height:1.5}
+.tip .m{font-size:11.5px;color:var(--faint)}
+
+/* ============================================================ SHEET */
+#sheet{position:fixed;inset:0;z-index:60;background:rgba(19,16,23,.38);
+  backdrop-filter:blur(3px);display:none;align-items:center;justify-content:center;padding:20px}
+#sheet.on{display:flex}
+.sheet{background:#fff;border-radius:10px;max-width:660px;width:100%;
+  max-height:88vh;overflow-y:auto;box-shadow:0 30px 80px -30px rgba(20,8,40,.5)}
+.sheet-top{display:flex;justify-content:space-between;align-items:center;
+  padding:18px 24px;border-bottom:1px solid var(--rule);position:sticky;top:0;background:#fff;z-index:2}
+.sheet-step{font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--faint)}
+.x{font:inherit;font-size:20px;line-height:1;background:none;border:0;cursor:pointer;
+  color:var(--faint);padding:0 4px}
+.sheet-body{padding:26px 24px 30px}
+.sheet-body h3{font-family:var(--display);font-size:21px;font-weight:600;margin-bottom:8px}
+.sheet-body .sub{font-size:15px;color:var(--soft);margin-bottom:22px}
+.chan{display:grid;gap:11px}
+.card{border:1px solid var(--rule);border-radius:8px;padding:19px 20px;text-align:left;
+  background:#fff;font:inherit;cursor:pointer;width:100%;font-family:var(--sans)}
+.card:hover:not(:disabled){border-color:var(--ink)}
+.card:disabled{opacity:.5;cursor:not-allowed}
+.card .row1{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin-bottom:5px}
+.card b{font-family:var(--display);font-weight:600;font-size:17px}
+.card .time{font-size:12.5px;color:var(--faint);white-space:nowrap}
+.card p{font-size:14px;color:var(--soft);line-height:1.6}
+.card .avail{font-size:12.5px;margin-top:9px;padding-top:9px;border-top:1px solid var(--rule)}
+.yes{color:#2F7A55}.no{color:#B3261E}.soon{color:#8A6D1F}
+.card.rec{border-color:var(--ink);border-width:1.5px;padding:18px 19px}
+.badge{display:inline-block;font-size:10px;letter-spacing:.14em;text-transform:uppercase;
+  background:var(--ink);color:#fff;padding:3px 9px;border-radius:999px;margin-bottom:9px}
+.pgroup{margin-bottom:16px}
+.pgroup h4{font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--faint);
+  font-weight:500;margin-bottom:9px}
+.notice{font-size:13.5px;line-height:1.55;color:#6B5518;background:#FFFDF6;
+  border:1px solid #E6D6A9;border-radius:7px;padding:12px 14px;margin-bottom:20px}
+.personas{display:grid;grid-template-columns:repeat(auto-fit,minmax(168px,1fr));gap:8px}
+.persona{border:1px solid var(--rule);background:#fff;font-family:var(--sans);text-align:left;
+  padding:13px 14px;cursor:pointer;border-radius:7px}
+.persona:hover{border-color:var(--faint)}
+.persona[aria-pressed=true]{border-color:var(--ink);border-width:1.5px;padding:12.5px 13.5px}
+.persona b{display:block;font-weight:600;font-size:15px}
+.persona span{display:block;font-size:13px;color:var(--soft);margin-top:1px}
+.flag{display:inline-block;font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;
+  color:#8A6D1F;border:1px solid #E6D6A9;background:#FFFDF6;padding:2px 5px;
+  border-radius:3px;margin-top:6px}
+.consent{border:1.5px solid #C9922B;background:#FFFDF6;border-radius:8px;padding:22px}
+.consent p{font-size:14.5px;color:#6B5518;margin-bottom:14px}
+.agebtns{display:flex;gap:9px;flex-wrap:wrap;margin-top:6px}
+.agebtn{font-family:var(--sans);font-size:14.5px;padding:11px 19px;border:1px solid #D8C48A;
+  background:#fff;border-radius:6px;cursor:pointer;color:#5A4712}
+.payload{background:var(--tint);border-radius:8px;padding:18px 20px;
+  font-family:ui-monospace,Menlo,monospace;font-size:12.5px;line-height:1.95;color:var(--soft)}
+.stitchbig{width:86px;height:86px;margin-bottom:18px}
+
+/* demo control — strip before launch */
+.demo{position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:70;
+  background:#fff;border:1px solid var(--rule);border-radius:8px;padding:9px 14px;
+  display:flex;align-items:center;gap:12px;width:min(660px,calc(100vw - 28px));
+  box-shadow:0 4px 14px -8px rgba(20,10,40,.25)}
+.demo label{font-size:10px;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--faint);white-space:nowrap}
+.demo input{flex:1;accent-color:#141118}
+.demo .v{font-family:var(--display);font-size:14px;font-weight:500;
+  font-variant-numeric:tabular-nums;min-width:92px;text-align:right}
+.seg{display:flex;border:1px solid var(--rule);border-radius:6px;overflow:hidden}
+.seg button{font:inherit;font-size:12px;padding:5px 10px;border:0;background:#fff;
+  cursor:pointer;color:var(--soft);border-left:1px solid var(--rule);white-space:nowrap}
+.seg button:first-child{border-left:0}
+.seg button[aria-pressed=true]{background:var(--ink);color:#fff}
+.demo .hide{font-size:16px;line-height:1;background:none;border:0;cursor:pointer;
+  color:var(--faint);padding:0 2px}
+@media(max-width:700px){.demo{width:calc(100vw - 24px);padding:8px 11px;gap:8px}
+  .demo label{display:none}}
+.vnum{font-family:var(--display);font-size:44px;font-weight:400;letter-spacing:-.02em;
+  line-height:1;font-variant-numeric:tabular-nums}
+.vlab{font-size:11.5px;letter-spacing:.26em;text-transform:uppercase;color:var(--faint);margin-top:9px}
+.actions{display:flex;gap:9px;flex-wrap:wrap;margin-top:22px}
+
+/* ============================================================ ABOUT */
+#about{display:none;padding-bottom:70px}
+#about.on{display:block}
+.abnav{position:sticky;top:0;z-index:20;background:rgba(255,255,255,.96);
+  backdrop-filter:blur(10px);border-bottom:1px solid var(--rule)}
+.wrap{max-width:820px;margin:0 auto;padding:0 24px}
+.abnav .wrap{display:flex;align-items:center;justify-content:space-between;height:60px;gap:14px}
+.mark{font-family:var(--display);font-weight:700;font-size:17px;cursor:pointer}
+.abnav .r{display:flex;gap:9px;align-items:center}
+.sec{padding:clamp(48px,7vw,84px) 0;border-top:1px solid var(--rule)}
+.sec:first-of-type{border-top:0}
+.kicker{font-family:var(--display);font-size:clamp(26px,4.2vw,44px);font-weight:600;
+  line-height:1.18;letter-spacing:-.02em;margin-bottom:18px}
+.sec h2{font-family:var(--display);font-size:clamp(20px,2.8vw,28px);font-weight:600;margin-bottom:14px}
+.sec p{font-size:17px;color:var(--soft);margin-bottom:16px;max-width:62ch}
+.sec p.lead{font-size:18.5px;color:var(--ink)}
+.eyebrow{font-size:11px;letter-spacing:.24em;text-transform:uppercase;color:var(--faint);margin-bottom:14px}
+.src{font-size:13.5px;color:var(--faint);line-height:1.6;margin-top:18px;
+  padding-left:14px;border-left:2px solid var(--rule)}
+.rc{border:1px solid var(--ink);max-width:520px;font-family:ui-monospace,Menlo,monospace;
+  font-size:13px;margin:26px 0}
+.rc .head{border-bottom:1px solid var(--ink);padding:11px 16px;display:flex;
+  justify-content:space-between;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase}
+.rc ul{list-style:none;margin:0;padding:12px 16px}
+.rc li{display:flex;gap:8px;align-items:baseline;padding:3px 0;white-space:nowrap}
+.rc li .d{flex:1;border-bottom:1px dotted #BDBDBD;transform:translateY(-3px)}
+.rc .h2 li{color:var(--faint)}
+.rc .h2{border-top:1px dashed var(--rule)}
+.blank{display:inline-block;width:30px;border-bottom:1px solid var(--faint);transform:translateY(-2px)}
+.five{border-top:1px solid var(--rule);margin-top:24px}
+.five div{display:grid;grid-template-columns:190px 1fr;gap:18px;padding:17px 0;
+  border-bottom:1px solid var(--rule)}
+.five b{font-family:var(--display);font-weight:600;font-size:14px;letter-spacing:.1em;text-transform:uppercase}
+.five p{margin:0;font-size:16.5px}
+@media(max-width:620px){.five div{grid-template-columns:1fr;gap:4px}}
+.three{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:26px;margin-top:8px}
+.three h3{font-family:var(--display);font-size:17px;font-weight:600;margin-bottom:7px}
+.three p{font-size:15.5px;margin:0}
+.abfoot{border-top:1px solid var(--rule);padding:30px 0;font-size:13.5px;color:var(--faint)}
+.abfoot .wrap{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.abfoot a{color:var(--soft);text-decoration:none;margin-right:16px;cursor:pointer}
+
+@media(max-width:700px){
+  .bl{bottom:80px;left:16px;right:16px}
+  .keys{flex-wrap:wrap;gap:6px 14px}
+  .br{bottom:34px;right:16px}.tl{top:16px;left:16px}.tr{top:16px;right:16px}
+}
+</style>
+</head>
+<body>
+
+<!-- ============================================================ LOADER -->
+<div id="loader">
+  <div class="lstack">
+    <div class="lnamebox"><span id="lname">AapBolo</span></div>
+    <span id="lfor">for Education</span>
+  </div>
+  <span id="lmeasure" aria-hidden="true"></span>
+  <div class="skip" id="skip">click to skip</div>
+</div>
+
+<!-- ============================================================ LANDING -->
+<div id="landing">
+  <canvas id="weave" role="img" aria-label="A cloth of running stitches scattered across the page, one for each voice"></canvas>
+
+  <div class="demo" id="demo">
+    <label for="sl">Stitches</label>
+    <input type="range" id="sl" min="0" max="1000" value="620" step="1">
+    <span class="v" id="slv">0</span><div class="seg" id="pseg"><button data-p="1">1 pass</button><button data-p="2" aria-pressed="true">2 passes</button></div>
+    <button class="hide" id="slHide" title="Hide this control" aria-label="Hide demo control">&times;</button>
+  </div>
+
+  <div class="corner tl"><button class="chip" onclick="route('about')">☰&nbsp; About this campaign</button></div>
+  <div class="corner tr"><select id="lang" class="chip" style="padding:8px 12px" aria-label="Language"></select></div>
+  <div class="corner bl"><div class="legend"><div class="keys" id="keys"></div><div class="ratio" id="passnote" hidden></div><div class="ratio" id="ratio" hidden></div></div></div>
+  <div class="corner br"><button class="chip quiet" onclick="route('privacy')">Privacy</button></div>
+
+  <div class="centre"><div class="plate" id="plate">
+    <p class="count"><span id="num">0</span><span class="plus" id="plus">+1</span></p>
+    <p class="clab">voices</p>
+    <div class="cta"><button class="btn" onclick="openSheet()">Add your Voice</button></div>
+  </div></div>
+</div>
+
+<!-- ============================================================ SHEET -->
+<div id="sheet">
+  <div class="sheet">
+    <div class="sheet-top">
+      <span class="sheet-step" id="sStep"></span>
+      <button class="x" onclick="closeSheet()" aria-label="Close">&times;</button>
+    </div>
+    <div class="sheet-body" id="sBody"></div>
+  </div>
+</div>
+
+<!-- ============================================================ ABOUT -->
+<div id="about">
+  <div class="abnav"><div class="wrap">
+    <span class="mark" onclick="route('home')">AapBolo</span>
+    <div class="r">
+      <button class="chip quiet" onclick="route('home')">← The voices</button>
+      <button class="btn sm" onclick="route('home');setTimeout(openSheet,80)">Add your Voice</button>
+    </div>
+  </div></div>
+
+  <div class="wrap">
+    <section class="sec">
+      <p class="eyebrow">About this campaign</p>
+      <h1 class="kicker">There is one subject nobody ever wrote down.</h1>
+      <p class="lead">Physics had a committee. History had arguments. Even Moral Science had a syllabus.
+        Someone sat in a room and decided what a sixteen-year-old needs to know about motion, or the
+        Mughals, or the rivers of Karnataka.</p>
+      <p>There is one subject that never got that treatment: what it takes to walk out of school and be
+        ready for the world outside it. It changes every decade. It looks different in Dhemaji and in
+        Dharavi. You cannot test it in March. So it stayed unwritten, and everything else got written
+        around it.</p>
+    </section>
+
+    <section class="sec">
+      <p class="eyebrow">Why now</p>
+      <h2>The frameworks are ready. The answer is not.</h2>
+      <p>The National Education Policy asked for a fuller picture of a child. PARAKH mandated that the
+        report card carry it. What nobody has is the thing those frameworks are waiting for — an account
+        of what readiness actually means, from the people who live with the consequences of getting it
+        wrong.</p>
+      <p>So we are asking. Not a panel. Not a consultation. A million people, one sentence.</p>
+      <p class="src">39% of workers' core skills are expected to change by 2030 — down from 44% in 2023.
+        World Economic Forum, <i>Future of Jobs Report 2025</i>, based on over 1,000 employers across
+        55 economies. A global employer survey, not India-specific.</p>
+    </section>
+
+    <section class="sec">
+      <p class="eyebrow">What we are listening for</p>
+      <h2>Not marks.</h2>
+      <p>We are not asking whether school taught you enough. We are asking about five things marks were
+        never able to show. These five are the shape of the question, not the answer — they are how we
+        will sort a million responses, not a conclusion we have already reached.</p>
+      <div class="five">
+        <div><b>Agency</b><p>Thinking for yourself, choosing your own direction.</p></div>
+        <div><b>Awareness</b><p>Knowing how the world works outside a textbook.</p></div>
+        <div><b>Connectedness</b><p>Having someone who has your back.</p></div>
+        <div><b>Wellbeing</b><p>Being alright, and safe enough to fail at something.</p></div>
+        <div><b>Mastery</b><p>Still learning, once nobody is making you.</p></div>
+      </div>
+    </section>
+
+    <section class="sec">
+      <p class="eyebrow">What it is for</p>
+      <h2>A report card that can hold more than marks.</h2>
+      <div class="rc">
+        <div class="head"><span>Report card</span><span>2026–27</span></div>
+        <ul>
+          <li><span>MATHEMATICS</span><span class="d"></span><span>78</span></li>
+          <li><span>SCIENCE</span><span class="d"></span><span>71</span></li>
+          <li><span>SOCIAL STUDIES</span><span class="d"></span><span>84</span></li>
+          <li><span>LANGUAGE</span><span class="d"></span><span>66</span></li>
+        </ul>
+        <ul class="h2">
+          <li><span>CAN THINK FOR THEMSELVES</span><span class="d"></span><span class="blank"></span></li>
+          <li><span>KNOWS THE WORLD OUTSIDE THE BOOK</span><span class="d"></span><span class="blank"></span></li>
+          <li><span>HAS SOMEONE IN THEIR CORNER</span><span class="d"></span><span class="blank"></span></li>
+          <li><span>IS ALRIGHT</span><span class="d"></span><span class="blank"></span></li>
+          <li><span>STILL LEARNING</span><span class="d"></span><span class="blank"></span></li>
+        </ul>
+      </div>
+      <p>The top half exists. Every school in the country can produce it by Tuesday. The bottom half is
+        what a million people are being asked to help write.</p>
+      <p>You cannot measure something until you have agreed what it is. Which is why nobody has built it.
+        Which is why we are asking first.</p>
+    </section>
+
+    <section class="sec">
+      <p class="eyebrow">Afterwards</p>
+      <h2>Your answer goes three places.</h2>
+      <div class="three">
+        <div><h3>It gets argued with</h3><p>Held against what the rest of the world has worked out about
+          readiness, and against what already exists here.</p></div>
+        <div><h3>It gets heard</h3><p>Not as one number for the country. Broken down by age, place and
+          circumstance.</p></div>
+        <div><h3>It gets used</h3><p>To shape how readiness is understood and assessed, starting with
+          what a report card would need to carry.</p></div>
+      </div>
+    </section>
+
+    <section class="sec">
+      <p class="eyebrow">Who is asking</p>
+      <h2>Shikshagraha.</h2>
+      <p>A movement rebuilding a million public schools with the people who live around them — teachers,
+        parents, young people, district officials. Not a scheme. Placeholder — partner list and
+        governance note to come.</p>
+    </section>
+
+    <section class="sec">
+      <p class="eyebrow">The whole strategy</p>
+      <h2>Ask one person the question.</h2>
+      <p>Your younger sibling. Your mother, who has opinions and has never been asked. The person at the
+        chai shop who left school at fourteen and knows exactly what he needed.</p>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:22px">
+        <button class="btn" onclick="route('home');setTimeout(openSheet,80)">Add your Voice</button>
+        <button class="btn ghost" onclick="alert('Downloadable poster — placeholder')">Download a poster</button>
+      </div>
+    </section>
+  </div>
+
+  <div class="abfoot"><div class="wrap">
+    <div><a onclick="route('privacy')">Privacy</a><a>Contact</a><a>Press</a></div>
+    <div>A Shikshagraha campaign</div>
+  </div></div>
+</div>
+
+<div class="quote" id="q0"><p></p><div class="m"><i></i><span></span></div></div>
+<div class="quote" id="q1"><p></p><div class="m"><i></i><span></span></div></div>
+<div class="tip" id="tip"><p></p><div class="m"></div></div>
+<div class="urlbar"><b id="url">aapbolo.in</b><span>fake address bar — About is a real page</span></div>
+
+<script>
+(function(){
+"use strict";
+
+/* ============================================================
+   PALETTE — solid colour per persona, resting at 0.65
+   ============================================================ */
+var RESTING=0.65;
+var PERSONAS=[
+  {id:"youth",  label:"Young people",  col:"#463A90", share:.30, minor:"ask"},
+  {id:"parents",label:"Parents",       col:"#8B4A9C", share:.27, minor:"no"},
+  {id:"edu",    label:"Educators",     col:"#E8197B", share:.22, minor:"no"},
+  {id:"emp",    label:"Employers",     col:"#CC1B35", share:.07, minor:"no"},
+  {id:"gen",    label:"General public",col:"#F7941D", share:.14, minor:"no"}
+];
+/* the Mitra persona list is finer than the colour legend — youth
+   splits into three bands there, all sharing the youth colour */
+var MITRA_PERSONAS=[
+  /* Under-18s are out of scope for now: the 12-15 band is removed and the
+     16-20 band starts at 18. The parental-consent screens further down are
+     left in place, unreachable, so the band can be switched back on. */
+  {id:"y2",label:"Youth",note:"18 to 20",col:"#463A90",group:"Young people",minor:"no"},
+  {id:"y3",label:"Youth",note:"21 to 25",col:"#463A90",group:"Young people",minor:"no"},
+  {id:"par",label:"Parent",note:"or family member",col:"#8B4A9C",group:"Everyone else",minor:"no"},
+  {id:"edu",label:"Educator",note:"teacher, head, DIET",col:"#E8197B",group:"Everyone else",minor:"no"},
+  {id:"emp",label:"Employer",note:"someone who hires",col:"#CC1B35",group:"Everyone else",minor:"no"},
+  {id:"gen",label:"General public",note:"anyone else",col:"#F7941D",group:"Everyone else",minor:"no"}
+];
+
+var SITE_LANGS=[
+  {c:"en",n:"English"},{c:"hi",n:"हिन्दी"},{c:"ta",n:"தமிழ்"},{c:"te",n:"తెలుగు"},
+  {c:"kn",n:"ಕನ್ನಡ"},{c:"mr",n:"मराठी"},{c:"as",n:"অসমীয়া"},{c:"bn",n:"বাংলা"},
+  {c:"gu",n:"ગુજરાતી"},{c:"ml",n:"മലയാളം"},{c:"pa",n:"ਪੰਜਾਬੀ"},{c:"or",n:"ଓଡ଼ିଆ"}
+];
+var MITRA_LIVE=["hi","ta","te","kn","en"], MITRA_SOON=["mr","as"];
+
+var QUOTES=[
+  ["a child can ask a question without being afraid","youth","Kalaburagi"],
+  ["my daughter knows what to do when the money runs out","parents","Barmer"],
+  ["they leave knowing how to read a contract","emp","Thane"],
+  ["बच्चे को यह पता हो कि वह अकेला नहीं है","parents","Sitapur"],
+  ["nobody feels stupid for asking twice","edu","Palakkad"],
+  ["ಮಗು ತನ್ನ ಬಗ್ಗೆ ಒಳ್ಳೆಯದಾಗಿ ಯೋಚಿಸಬೇಕು","youth","Mandya"],
+  ["a girl finishes school before she is married","gen","Purnia"],
+  ["they can argue with a bus timetable and win","youth","Salem"],
+  ["the teacher actually comes every day","parents","Dhemaji"],
+  ["a boy knows it is alright to cry","edu","Wardha"],
+  ["children run into school, not away from it","edu","Hooghly"],
+  ["someone notices when a child stops coming","gen","Koraput"],
+  ["என் மகன் வேலைக்குத் தயாராக இருக்க வேண்டும்","parents","Dindigul"],
+  ["she has one adult she can tell anything","youth","Bankura"],
+  ["a child is not punished for being slow","gen","Kutch"],
+  ["no child sits at the back because of their name","gen","Jhabua"],
+  ["a teacher can say I got that wrong","edu","Nalanda"],
+  ["they know what a bank form is before they need one","emp","Bilaspur"]
+];
+
+var TOTAL=104382, NOTCH=10, GAP=16;   /* NOTCH/GAP position the callout tail */
+var S={lang:"en",persona:null,channel:null,minor:false};
+
+/* ============================================================
+   LOADER
+   Name and "for Education" are stacked. The name box has a fixed
+   height, so taller scripts cannot push anything. The name also
+   scales down if a script runs wide or tall.
+   NOTE: every transliteration needs native-speaker review.
+   ============================================================ */
+var NAMES=[
+  ["AapBolo",  "'Comfortaa'"],
+  ["आपबोलो",    "'Anek Devanagari'"],
+  ["ಆಪ್‌ಬೋಲೋ",   "'Anek Kannada'"],
+  ["ஆப்போலோ",   "'Anek Tamil'"],
+  ["আপবোলো",   "'Anek Bangla'"],
+  ["ఆప్‌బోలో",    "'Anek Telugu'"],
+  ["આપબોલો",   "'Anek Gujarati'"],
+  ["ആപ്ബോലോ", "'Anek Malayalam'"],
+  ["ਆਪਬੋਲੋ",    "'Anek Gurmukhi'"],
+  ["ଆପବୋଲୋ",   "'Anek Odia'"]
+];
+
+(function loader(){
+  var L=document.getElementById("loader"),
+      N=document.getElementById("lname"),
+      F=document.getElementById("lfor"),
+      M=document.getElementById("lmeasure"),
+      BOX=document.querySelector(".lnamebox"),
+      SK=document.getElementById("skip");
+  var timers=[], ended=false;
+  function t(fn,ms){ timers.push(setTimeout(fn,ms)); }
+
+  function finish(){
+    if(ended) return; ended=true;
+    timers.forEach(clearTimeout);
+    try{ sessionStorage.setItem("abSeen","1"); }catch(e){}
+    L.classList.add("gone");
+    document.getElementById("landing").classList.add("on");
+    /* the canvas may have had no box while the loader covered it */
+    if(window.build) window.build();
+    t(function(){ if(L.parentNode) L.remove(); }, 900);
+  }
+  L.onclick=finish;
+
+  var seen=false;
+  try{ seen=!!sessionStorage.getItem("abSeen"); }catch(e){}
+  if(seen){ finish(); return; }
+
+  /* base size, then shrink per script so nothing overflows the box */
+  var BASE=Math.min(96, Math.max(34, window.innerWidth*0.085));
+  function sizeFor(idx){
+    var n=NAMES[idx];
+    M.style.fontFamily=n[1]+", sans-serif";
+    M.style.fontSize=BASE+"px";
+    M.textContent=n[0];
+    var r=M.getBoundingClientRect();
+    var maxW=Math.min(window.innerWidth-56, 900);
+    var maxH=BOX.clientHeight||120;
+    var k=Math.min(1, maxW/(r.width||1), maxH/(r.height||1));
+    return Math.max(22, BASE*k);
+  }
+
+  function show(i){
+    N.style.fontFamily=NAMES[i][1]+", sans-serif";
+    N.style.fontSize=sizeFor(i)+"px";
+    N.textContent=NAMES[i][0];
+    N.classList.add("on");
+  }
+
+  function run(){
+    show(0);
+    t(function(){ SK.classList.add("on"); }, 1200);
+    t(function(){ F.classList.add("on"); }, 1100);   /* joins, then never moves */
+
+    var i=1;
+    function step(){
+      if(i>=NAMES.length){ t(finish, 800); return; }
+      N.classList.remove("on");
+      var idx=i;
+      t(function(){ show(idx); }, 300);
+      i++;
+      t(step, 800);                                   /* 800ms a script */
+    }
+    t(step, 2400);
+  }
+
+  if(document.fonts && document.fonts.ready) document.fonts.ready.then(run).catch(run);
+  else t(run, 500);
+})();
+
+/* ============================================================ ROUTING */
+window.route=function(p){
+  var L=document.getElementById("landing"), A=document.getElementById("about");
+  L.classList.remove("on"); A.classList.remove("on");
+  if(p==="home"){ L.classList.add("on"); setUrl("aapbolo.in"); build(); }
+  else if(p==="about"){ A.classList.add("on"); setUrl("aapbolo.in/about"); window.scrollTo(0,0); }
+  else { A.classList.add("on"); setUrl("aapbolo.in/privacy"); window.scrollTo(0,0);
+    alert("Privacy — a separate real page. Placeholder."); }
+};
+function setUrl(u){
+  var pre = S.lang==="en" ? "" : "/"+S.lang;
+  var el=document.getElementById("url");
+  if(el) el.textContent=u.replace("aapbolo.in","aapbolo.in"+pre);
+}
+var sel=document.getElementById("lang");
+SITE_LANGS.forEach(function(l){
+  var o=document.createElement("option"); o.value=l.c; o.textContent=l.n; sel.appendChild(o);
+});
+sel.onchange=function(){
+  S.lang=this.value; document.documentElement.lang=S.lang;
+  setUrl(document.getElementById("about").classList.contains("on")?"aapbolo.in/about":"aapbolo.in");
+};
+
+/* ============================================================ SHEET */
+var sheet=document.getElementById("sheet"), sBody=document.getElementById("sBody"),
+    sStep=document.getElementById("sStep");
+window.openSheet=function(){ sheet.classList.add("on"); chanStep(); };
+window.closeSheet=function(){ sheet.classList.remove("on"); };
+sheet.onclick=function(e){ if(e.target===sheet) closeSheet(); };
+function langName(c){ var m=SITE_LANGS.filter(function(l){return l.c===c}); return m.length?m[0].n:c; }
+
+function chanStep(){
+  sStep.textContent="Add your Voice";
+  var ok=MITRA_LIVE.indexOf(S.lang)>-1, soon=MITRA_SOON.indexOf(S.lang)>-1;
+  var mLine = ok ? '<span class="yes">Available in '+langName(S.lang)+'</span>'
+    : soon ? '<span class="soon">'+langName(S.lang)+' is being built — not ready yet</span>'
+    : '<span class="no">Not available in '+langName(S.lang)+' yet</span>';
+  sBody.innerHTML=
+    '<h3>How would you like to answer?</h3>'+
+    '<p class="sub">A line is fine. A paragraph is better. Every answer counts the same.</p>'+
+    '<div class="chan">'+
+
+      /* Mitra leads, and is only marked recommended when it can actually run
+         in the language the person is reading the site in. */
+      '<button class="card'+(ok?' rec':'')+'" onclick="pick(\'mitra\')"'+(ok?'':' disabled')+'>'+
+        (ok?'<span class="badge">Recommended</span>':'')+
+        '<span class="row1"><b>Chat with Mitra</b></span>'+
+        '<p>Mitra is a chatbot. Talk or type to it about the future of education.</p>'+
+        '<div class="avail">'+mLine+'</div></button>'+
+
+      '<button class="card" onclick="pick(\'ivr\')">'+
+        '<span class="row1"><b>Call and speak</b></span>'+
+        '<p>Call 1800 XXX XXXX from any phone and answer out loud. No internet needed.</p>'+
+        '<div class="avail"><span class="yes">Any phone \u00b7 Free to call \u00b7 Any time</span></div>'+
+        '</button>'+
+
+      /* A facilitator tool, not a public channel. Shown so the route is visible,
+         disabled so nobody starts down it. */
+      '<button class="card" disabled>'+
+        '<span class="row1"><b>Fill a form</b></span>'+
+        '<p>The longer written version, for facilitators running a group session.</p>'+
+        '<div class="avail"><span class="no">For facilitators only \u2014 not open here</span></div>'+
+        '</button>'+
+    '</div>';
+}
+window.pick=function(k){
+  S.channel=k;
+  if(k==="mitra"){ personaStep(); return; }
+  S.persona=null; S.minor=false; handoff();
+};
+function personaStep(){
+  sStep.textContent="Who is speaking";
+  var h='<h3>Which of these is closest to you?</h3>'+
+    '<p class="sub">Mitra asks different questions depending on who is answering.</p>'+
+    '<div class="notice">We are not collecting answers from under-18s here yet. '+
+    'Younger students answer through school and community sessions, where consent '+
+    'is taken on paper.</div>';
+  ["Young people","Everyone else"].forEach(function(g){
+    h+='<div class="pgroup"><h4>'+g+'</h4><div class="personas">';
+    MITRA_PERSONAS.filter(function(p){return p.group===g}).forEach(function(p){
+      h+='<button class="persona" data-id="'+p.id+'"><b>'+p.label+'</b><span>'+p.note+'</span>'+
+         (p.minor==="always"?'<span class="flag">consent needed</span>':
+          p.minor==="maybe"?'<span class="flag">may be under 18</span>':'')+'</button>';
+    });
+    h+='</div></div>';
+  });
+  h+='<div style="margin-top:18px;display:flex;gap:9px"><button class="btn" id="pn" disabled>Continue</button>'+
+     '<button class="btn ghost" onclick="chanBack()">Back</button></div>';
+  sBody.innerHTML=h;
+  Array.prototype.forEach.call(sBody.querySelectorAll(".persona"),function(b){
+    b.onclick=function(){
+      Array.prototype.forEach.call(sBody.querySelectorAll(".persona"),function(x){x.removeAttribute("aria-pressed")});
+      b.setAttribute("aria-pressed","true");
+      var m=MITRA_PERSONAS.filter(function(p){return p.id===b.getAttribute("data-id")});
+      S.persona=m[0];
+      document.getElementById("pn").disabled=false;
+    };
+  });
+  document.getElementById("pn").onclick=function(){
+    if(S.persona.minor==="always"){ S.minor=true; consentStep("under"); }
+    else if(S.persona.minor==="maybe"){ consentStep("ask"); }
+    else { S.minor=false; handoff(); }
+  };
+}
+window.chanBack=chanStep;
+window.personaBack=personaStep;
+function consentStep(mode){
+  sStep.textContent="Step 2 of 2 · before you start";
+  if(mode==="ask"){
+    sBody.innerHTML='<h3>Have you turned 18?</h3>'+
+      '<p class="sub">We ask because the rules for under-18s are different, and we have to follow them.</p>'+
+      '<div class="consent"><p>Nothing changes about your answer. Only how we are allowed to record it.</p>'+
+      '<div class="agebtns">'+
+      '<button class="agebtn" onclick="ageYes()">Yes, I am 18 or older</button>'+
+      '<button class="agebtn" onclick="ageNo()">No, I am under 18</button></div></div>';
+  } else {
+    sBody.innerHTML='<h3>We need a parent or teacher with you.</h3>'+
+      '<p class="sub">Your answer matters — we just need an adult alongside you.</p>'+
+      '<div class="consent">'+
+      '<p>For anyone under 18, Indian law needs a parent or guardian to agree before we can record what '+
+      'you say. There are two ways to do that.</p>'+
+      '<div class="agebtns">'+
+      '<button class="agebtn" onclick="alert(\'DigiLocker parental verification — separate build.\')">A parent verifies here</button>'+
+      '<button class="agebtn" onclick="alert(\'Paper consent via school or field partner.\')">Answer through my school</button>'+
+      '</div>'+
+      '<p style="margin-top:16px;font-size:13.5px">Most under-18 answers come through schools and field '+
+      'partners on paper, not through this screen.</p></div>'+
+      '<div style="margin-top:16px"><button class="btn ghost" onclick="personaBack()">Back</button></div>';
+  }
+}
+window.ageYes=function(){ S.minor=false; handoff(); };
+window.ageNo=function(){ S.minor=true; consentStep("under"); };
+
+var HAND={
+  mitra:{t:"Opening the chat",
+    s:"Persona chooses which bot opens. Language comes from the site, so Mitra should skip asking again.",
+    p:function(){return["persona = "+(S.persona?S.persona.id:"—")+"   → selects the Mitra instance",
+      "lang    = "+S.lang+"   → bot skips its language step",
+      "minor   = "+S.minor+"   → consent captured if true",
+      "return  = aapbolo.in/done"]}},
+  ivr:{t:"Calling the voice line",
+    s:"They dial the number themselves. The IVR asks persona and language by keypress, then records.",
+    p:function(){return["number  = 1800 XXX XXXX   (one number, all personas)",
+      "persona → asked by keypress in the call",
+      "lang    → asked by keypress in the call",
+      "return  → SMS with their voice number and a link"]}},
+  /* Parked: facilitator route only, not reachable from the page. */
+  form:{t:"Opening the form",
+    s:"Facilitator route only. A per-language form opens with persona as its first question.",
+    p:function(){return["form    = per-language form for "+S.lang,
+      "persona → asked as the first question",
+      "return  → link on the confirmation screen only"]}}
+};
+function handoff(){
+  var c=HAND[S.channel];
+  sStep.textContent="Handing off";
+  sBody.innerHTML='<h3>'+c.t+'</h3><p class="sub">'+c.s+'</p>'+
+    '<div class="payload">'+c.p().join("<br>")+'</div>'+
+    '<div class="actions"><button class="btn" onclick="finishFlow()">Simulate: they finish answering →</button>'+
+    '<button class="btn ghost" onclick="chanBack()">Back</button></div>';
+}
+window.finishFlow=function(){
+  sStep.textContent="Done";
+  TOTAL+=1; retarget(TOTAL);
+  var col=S.persona?S.persona.col:"#F7941D";
+  var note={
+    mitra:"Mitra sent you back here automatically.",
+    ivr:"We have texted this to your phone, because you answered by call.",
+    form:"You came back through the link on the form's last screen."
+  }[S.channel];
+  sBody.innerHTML='<h3>Your voice is in.</h3><p class="sub">'+note+'</p>'+
+    '<canvas class="stitchbig" id="myStitch"></canvas>'+
+    '<div class="vnum">'+TOTAL.toLocaleString("en-IN")+'</div>'+
+    '<p class="vlab">your stitch · voice number</p>'+
+    '<div class="actions">'+
+    '<button class="btn" onclick="alert(\'Server-rendered PNG, 1080×1920, Indic fonts bundled.\')">Share my stitch</button>'+
+    '<button class="btn ghost" onclick="closeSheet()">See the whole cloth</button></div>';
+  drawBigStitch(col);
+  lightOne(col);
+};
+
+/* ============================================================
+   THE WEAVE — straight loom grid, solid colour per persona
+   ============================================================ */
+var cv=document.getElementById("weave"), cx=cv.getContext("2d");
+var tip=document.getElementById("tip"), tipP=tip.querySelector("p"), tipM=tip.querySelector(".m");
+var W=0,H=0,dpr=1,cells=[],geo=null,stamps={},base=null,live=[],timer=null;
+var retarget, shownNow, drawBigStitch, lightOne;
+
+function rnd(s){return function(){s=(s*1103515245+12345)&0x7fffffff;return s/0x7fffffff}}
+function hex(h){return [parseInt(h.substr(1,2),16),parseInt(h.substr(3,2),16),parseInt(h.substr(5,2),16)]}
+function shade(c,amt){
+  return "rgb("+[0,1,2].map(function(i){
+    var v=c[i];
+    return Math.max(0,Math.min(255, amt<0?Math.round(v*(1+amt)):Math.round(v+(255-v)*amt)));
+  }).join(",")+")";
+}
+/* ------------------------------------------------------------
+   ONE RUNNING STITCH — a short dash with round caps, laid along
+   the local direction of a flow field. Length and weight vary a
+   little, the way a hand varies. Drawn as a path, not a stamp,
+   so it stays crisp at any device pixel ratio.
+   ------------------------------------------------------------ */
+function drawStitch(g,x,y,len,ang,col,seed){
+  var r=rnd(seed);
+  var L=len*(0.88+r()*0.22), hw=L/2;
+  var dx=Math.cos(ang)*hw, dy=Math.sin(ang)*hw;
+  g.strokeStyle=col;
+  g.lineCap="round";
+  g.lineWidth=Math.max(1.6, len*0.26);
+  g.beginPath();
+  g.moveTo(x-dx, y-dy);
+  g.lineTo(x+dx, y+dy);
+  g.stroke();
+}
+
+function rebuild(){ /* nothing to pre-render — stitches are paths */ }
+
+function plateRect(){
+  var el=document.getElementById("plate");
+  return el ? el.getBoundingClientRect() : {left:0,top:0,width:0,height:0,right:0,bottom:0};
+}
+
+/* ============================================================
+   RUNNING SEAMS
+
+   A running stitch travels along a line. So the cloth is a stack
+   of seams, worked from the bottom edge upward: seam 0 is filled
+   left to right, then seam 1 begins above it, and so on. Voice N
+   is the Nth stitch in that order, which is why nothing already
+   on the page ever moves — it only ever gets a neighbour.
+
+   Each seam is a gentle wave. The phase drifts a little from one
+   seam to the next, so the lines stay roughly parallel while the
+   whole field bends, the way stitching follows the form of cloth
+   rather than a ruler.
+
+   The seam in progress is left unfinished. That ragged working
+   edge is where the newest voices are, and it is what makes the
+   cloth read as being made rather than printed.
+   ============================================================ */
+
+var PASSES=2;      /* the toggle in the demo bar sets this */
+var SEAM={
+  len:  11,     /* one stitch                                  */
+  gap:   7.5,   /* thread showing between stitches — pitch 18.5 */
+  line: 16.5    /* distance between seams                       */
+};
+
+/* Two shared swells carry every seam, so the lines stay parallel
+   and never cross. A small per-seam wobble on top keeps them from
+   reading as printed corrugation. */
+var WAVE={a1:6.6, f1:0.0052, d1:0.055,
+          a2:2.4, f2:0.0141, d2:-0.031,
+          aw:2.1, fw:0.0330};
+
+/* A murmur3 finaliser rather than the usual sin()*43758 trick, which
+   is not uniform enough over sequential integers: it was handing
+   Employers 5.9% of the stitches against a 7.0% share. */
+function ihash(n){
+  n=(n|0)^0x9E3779B9;
+  n=Math.imul(n^(n>>>16),0x85EBCA6B);
+  n=Math.imul(n^(n>>>13),0xC2B2AE35);
+  return ((n^(n>>>16))>>>0)/4294967296;
+}
+function personaAt(i){                 /* NB: personaFor(id,fb) below is a different lookup */
+  var h=ihash(i), acc=0;
+  for(var k=0;k<PERSONAS.length;k++){ acc+=PERSONAS[k].share; if(h<acc) return PERSONAS[k]; }
+  return PERSONAS[PERSONAS.length-1];
+}
+
+function ihash2(n,m){ return ihash(n*73856093 ^ m*19349663); }
+
+function seamPhase(li){
+  var h=Math.sin(li*12.9898)*43758.5453;
+  return (h-Math.floor(h))*6.2832;
+}
+/* The same wave that shaped the single pass, but expressed as a
+   displacement along the seam rather than as a y for a given x, so it
+   can be laid at any angle. Pass one runs bottom to top; pass two
+   turns ninety degrees and crosses it, left to right. */
+function seamDisp(t,k,sd){
+  return WAVE.a1*Math.sin(t*WAVE.f1 + k*WAVE.d1 + sd)
+       + WAVE.a2*Math.sin(t*WAVE.f2 + k*WAVE.d2 + sd*1.7)
+       + WAVE.aw*Math.sin(t*WAVE.fw + seamPhase(k + sd*29));
+}
+
+function seamPass(ang, sd){
+  var pitch=SEAM.len+SEAM.gap, ox=W/2, oy=H/2;
+  var ux=Math.cos(ang), uy=Math.sin(ang), nx=-uy, ny=ux;
+  var R=Math.hypot(W,H)/2+SEAM.line*2, out=[], e=3;
+  for(var k=0;;k++){
+    var s0=R-k*SEAM.line;
+    if(s0<-R) break;
+    /* every seam is begun at a different point, so stitches never
+       line up into columns across the cloth */
+    var off=(k*0.6180339887)%1;
+    for(var t=-R+off*pitch;t<=R;t+=pitch){
+      var jh=ihash2(k*7+Math.round(sd*100), Math.round(t));
+      var tt=t+(jh-0.5)*pitch*0.16;
+      var d=seamDisp(tt,k,sd);
+      var x=ox+ux*tt+nx*(s0+d), y=oy+uy*tt+ny*(s0+d);
+      if(x<-SEAM.len||x>W+SEAM.len||y<-SEAM.len||y>H+SEAM.len) continue;
+      var dd=seamDisp(tt+e,k,sd)-seamDisp(tt-e,k,sd);
+      out.push({x:x, y:y, a:Math.atan2(uy*2*e+ny*dd, ux*2*e+nx*dd)});
+    }
+  }
+  return out;
+}
+
+/* The second pass is not laid independently — that was the bug: it
+   landed near the first pass but almost never on it, so the crossings
+   were accidental. Instead it revisits the very same points, in a
+   different order, and lays each stitch square across the one already
+   there. Every stitch of pass two makes a real cross with a stitch of
+   pass one.
+
+   The order is what makes it a running stitch rather than a sprinkle:
+   the first pass travels in rows, so the second travels in columns,
+   binning the existing stitches into vertical bands and working up one
+   band and down the next. */
+function crossPass(first){
+  var pitch=SEAM.len+SEAM.gap, bands={}, i, k;
+  for(i=0;i<first.length;i++){
+    k=Math.floor(first[i].x/pitch);
+    (bands[k]||(bands[k]=[])).push(first[i]);
+  }
+  var keys=Object.keys(bands).map(Number).sort(function(a,b){return a-b});
+  var out=[];
+  for(k=0;k<keys.length;k++){
+    var col=bands[keys[k]];
+    col.sort(function(p,q){ return q.y-p.y; });      /* bottom to top  */
+    if(k%2===1) col.reverse();                       /* and back down  */
+    for(i=0;i<col.length;i++){
+      var c=col[i];
+      /* square to the stitch underneath, so the cross follows the
+         grain of the cloth rather than the page */
+      var jx=(ihash2(keys[k]*31+i, 7)-0.5)*SEAM.len*0.10;
+      var jy=(ihash2(keys[k]*31+i, 11)-0.5)*SEAM.len*0.10;
+      out.push({x:c.x+jx, y:c.y+jy, a:c.a+Math.PI/2});
+    }
+  }
+  return out;
+}
+
+function routes(){
+  var p1=seamPass(0, 0.4);
+  if(PASSES<2) return [p1];
+  return [p1, crossPass(p1)];
+}
+
+window.build=function build(){
+  dpr=window.devicePixelRatio||1;
+  W=cv.clientWidth; H=cv.clientHeight;
+  if(!W||!H) return;
+  cv.width=Math.round(W*dpr); cv.height=Math.round(H*dpr);
+  cx.setTransform(dpr,0,0,dpr,0,0);
+
+  var rs=routes(), all=[], p, i;
+  for(p=0;p<rs.length;p++)
+    for(i=0;i<rs[p].length;i++){ rs[p][i].pass=p; all.push(rs[p][i]); }
+
+  var capacity=all.length;
+  var want=Math.min(TOTAL,capacity);
+
+  /* Persona is a pure function of the stitch's index, so a stitch keeps
+     its colour for the whole campaign and nothing already on the cloth
+     changes when the count grows. */
+  cells=[];
+  for(i=0;i<want;i++){
+    var t=all[i];
+    cells.push({x:t.x, y:t.y, ang:t.a, pass:t.pass,
+                p:personaAt(i), seed:(i*2654435761)|0,
+                q:QUOTES[(i*7)%QUOTES.length]});
+  }
+  geo={len:SEAM.len, capacity:capacity, passes:rs.length};
+  showRatio(capacity);
+  passNote(want, rs);
+  bake(); paint();
+}
+
+/* which pass the needle is on, so the crossover is legible */
+function passNote(want, rs){
+  var el=document.getElementById("passnote");
+  if(!el) return;
+  if(rs.length<2){ el.hidden=true; return; }
+  var n=0, cur=rs.length;
+  for(var i=0;i<rs.length;i++){ n+=rs[i].length; if(want<=n){ cur=i+1; break; } }
+  el.hidden=false;
+  el.textContent="Pass "+cur+" of "+rs.length
+    + (cur===1 ? " — first layer, worked in rows"
+               : " — crossing each stitch of the first, worked in columns");
+}
+
+/* Below capacity one stitch is one voice, which is the whole promise
+   of the piece. Above it the cloth is a sample, and saying so is the
+   difference between a data visualisation and a decoration. */
+function showRatio(cap){
+  var el=document.getElementById("ratio");
+  if(!el) return;
+  var per=Math.round(TOTAL/cap);
+  if(TOTAL<=cap || per<2){ el.hidden=true; return; }
+  el.hidden=false;
+  el.textContent="The cloth is full \u2014 one stitch now stands for "
+                 + per.toLocaleString("en-IN") + " voices";
+}
+
+function bake(){
+  base=document.createElement("canvas");
+  base.width=Math.round(W*dpr); base.height=Math.round(H*dpr);
+  var b=base.getContext("2d"); b.setTransform(dpr,0,0,dpr,0,0);
+  b.globalAlpha=RESTING;
+  for(var i=0;i<cells.length;i++){
+    var c=cells[i];
+    drawStitch(b, c.x, c.y, SEAM.len, c.ang, c.p.col, c.seed);
+  }
+  /* the needle's trailing thread, just past the final stitch */
+  if(cells.length){
+    var last=cells[cells.length-1];
+    b.globalAlpha=RESTING*0.30;
+    b.strokeStyle=last.p.col; b.lineWidth=1.1; b.lineCap="round";
+    b.beginPath();
+    b.moveTo(last.x+Math.cos(last.ang)*SEAM.len*0.6,
+             last.y+Math.sin(last.ang)*SEAM.len*0.6);
+    b.lineTo(last.x+Math.cos(last.ang)*SEAM.len*1.9,
+             last.y+Math.sin(last.ang)*SEAM.len*1.9);
+    b.stroke();
+  }
+  b.globalAlpha=1;
+}
+
+/* the highlight is one thing: that stitch at full opacity */
+function paint(){
+  if(!base||!geo) return;
+  cx.clearRect(0,0,W,H);
+  cx.drawImage(base,0,0,W,H);
+  for(var i=0;i<live.length;i++){
+    var L=live[i];
+    if(L.k<=0) continue;
+    cx.globalAlpha=L.k;
+    drawStitch(cx, L.cell.x, L.cell.y, SEAM.len, L.cell.ang, L.cell.p.col, L.cell.seed);
+  }
+  cx.globalAlpha=1;
+}
+
+/* ---------- callouts ---------- */
+var slots=[{el:document.getElementById("q0"),busy:false},
+           {el:document.getElementById("q1"),busy:false}];
+function fits(x,y,w,h){
+  var pad=14, pl=plateRect();
+  if(x<pad||y<pad||x+w>W-pad||y+h>H-pad) return false;
+  if(x<pl.right+10 && x+w>pl.left-10 && y<pl.bottom+10 && y+h>pl.top-10) return false;
+  return true;
+}
+function place(el,bx,by){
+  el.className="quote";
+  var r=el.getBoundingClientRect(), w=r.width, h=r.height;
+  if(!w||!h) return false;
+  var order=(by>H*0.5)?["n-bottom","n-top","n-left","n-right"]:["n-top","n-bottom","n-left","n-right"];
+  for(var i=0;i<order.length;i++){
+    var side=order[i], x, y;
+    if(side==="n-bottom"){ y=by-NOTCH-GAP-h; x=Math.max(14,Math.min(bx-w/2,W-14-w));
+      if(!fits(x,y,w,h)) continue; el.style.setProperty("--nx",Math.max(18,Math.min(bx-x,w-18))+"px"); }
+    else if(side==="n-top"){ y=by+NOTCH+GAP; x=Math.max(14,Math.min(bx-w/2,W-14-w));
+      if(!fits(x,y,w,h)) continue; el.style.setProperty("--nx",Math.max(18,Math.min(bx-x,w-18))+"px"); }
+    else if(side==="n-left"){ x=bx+NOTCH+GAP; y=Math.max(14,Math.min(by-h/2,H-14-h));
+      if(!fits(x,y,w,h)) continue; el.style.setProperty("--ny",Math.max(18,Math.min(by-y,h-18))+"px"); }
+    else { x=bx-NOTCH-GAP-w; y=Math.max(14,Math.min(by-h/2,H-14-h));
+      if(!fits(x,y,w,h)) continue; el.style.setProperty("--ny",Math.max(18,Math.min(by-y,h-18))+"px"); }
+    el.style.left=x+"px"; el.style.top=y+"px";
+    el.classList.add(side);
+    return true;
+  }
+  return false;
+}
+function personaFor(id,fb){ var m=PERSONAS.filter(function(p){return p.id===id}); return m.length?m[0]:fb; }
+
+function surface(){
+  if(!document.getElementById("landing").classList.contains("on")){ timer=setTimeout(surface,1500); return; }
+  var free=slots.filter(function(x){return !x.busy});
+  if(!free.length){ timer=setTimeout(surface,1300); return; }
+  var s=free[0], c=null, guard=0;
+  while(guard++<300){
+    var cand=cells[Math.floor(Math.random()*cells.length)];
+    if(!cand) break;
+    if(cand.x<W*0.08||cand.x>W*0.92||cand.y<H*0.1||cand.y>H*0.92) continue;
+    c=cand; break;
+  }
+  if(!c){ timer=setTimeout(surface,1100); return; }
+
+  var q=c.q, per=personaFor(q[1],c.p);
+  /* the statements read as completions of the campaign question, so the
+     question itself is not repeated in every one of them */
+  s.el.querySelector("p").textContent="“… "+q[0]+"”";
+  s.el.querySelector(".m i").style.background=per.col;
+  s.el.querySelector(".m span").textContent=per.label+" · "+q[2];
+  s.el.classList.remove("on");
+  s.el.style.left="-9999px"; s.el.style.top="0px";
+
+  requestAnimationFrame(function(){
+    var bx=c.x, by=c.y;
+    if(!place(s.el,bx,by)){ timer=setTimeout(surface,800); return; }
+    s.busy=true; s.el.classList.add("on");
+    var L={cell:c,k:0}; live.push(L);
+    var t0=null;
+    (function up(t){ if(!t0)t0=t; var p=Math.min(1,(t-t0)/420); L.k=p; paint();
+      if(p<1) requestAnimationFrame(up); })();
+    setTimeout(function(){
+      s.el.classList.remove("on");
+      var t1=null;
+      (function down(t){ if(!t1)t1=t; var p=Math.min(1,(t-t1)/480); L.k=1-p; paint();
+        if(p<1) requestAnimationFrame(down);
+        else { live=live.filter(function(x){return x!==L}); s.busy=false; paint(); } })();
+    },6000);
+    timer=setTimeout(surface, 2600+Math.random()*1700);
+  });
+}
+
+/* ---------- counter ---------- */
+var numEl=document.getElementById("num"), plus=document.getElementById("plus"),
+    shown=0, from=0, to=TOTAL, t0=null;
+function roll(t){ if(!t0)t0=t; var p=Math.min(1,(t-t0)/1300), e=1-Math.pow(1-p,3);
+  shown=Math.round(from+(to-from)*e); numEl.textContent=shown.toLocaleString("en-IN");
+  if(p<1) requestAnimationFrame(roll); }
+requestAnimationFrame(roll);
+retarget=function(v){ from=shown; to=v; t0=null; requestAnimationFrame(roll); };
+shownNow=function(v){ shown=v; from=v; to=v; numEl.textContent=v.toLocaleString("en-IN"); };
+
+lightOne=function(col){
+  if(!cells.length) return;
+  var m=cells.filter(function(c){return c.p.col===col});
+  var c=(m.length?m:cells)[Math.floor(Math.random()*(m.length||cells.length))];
+  var L={cell:c,k:0}; live.push(L);
+  var a=null;
+  (function up(t){ if(!a)a=t; var p=Math.min(1,(t-a)/500); L.k=p; paint();
+    if(p<1) requestAnimationFrame(up);
+    else setTimeout(function(){
+      var b=null;
+      (function dn(t2){ if(!b)b=t2; var q=Math.min(1,(t2-b)/700); L.k=1-q; paint();
+        if(q<1) requestAnimationFrame(dn);
+        else { live=live.filter(function(x){return x!==L}); paint(); } })();
+    },2500); })();
+};
+
+drawBigStitch=function(col){
+  var c=document.getElementById("myStitch"); if(!c) return;
+  var d=window.devicePixelRatio||1;
+  c.width=86*d; c.height=86*d;
+  var g=c.getContext("2d"); g.setTransform(d,0,0,d,0,0);
+  /* the share mark: a single stitch, large */
+  drawStitch(g, 12, 43, 62, -0.32, col, 7);
+  drawStitch(g, 43, 43, 62, -0.32, col, 19);
+  drawStitch(g, 74, 43, 62, -0.32, col, 41);
+};
+
+/* ---------- hover ---------- */
+cv.addEventListener("mousemove",function(e){
+  if(!geo) return;
+  var best=null,bd=1e9;
+  for(var i=cells.length-1;i>=0;i--){
+    var c=cells[i];
+    var dx=e.clientX-c.x, dy=e.clientY-c.y, dd=dx*dx+dy*dy;
+    if(dd<geo.len*geo.len*0.42 && dd<bd){ bd=dd; best=c; }
+  }
+  if(best){
+    tip.style.opacity=1;
+    tip.style.left=Math.min(e.clientX+15,window.innerWidth-316)+"px";
+    tip.style.top=Math.min(e.clientY+15,window.innerHeight-130)+"px";
+    tipP.textContent="“Education should be such that "+best.q[0]+"”";
+    var per=personaFor(best.q[1],best.p);
+    tipM.textContent=per.label+" · "+best.q[2];
+  } else tip.style.opacity=0;
+});
+cv.addEventListener("mouseleave",function(){ tip.style.opacity=0; });
+
+/* ---------- legend ---------- */
+(function(){
+  var k=document.getElementById("keys");
+  PERSONAS.forEach(function(p){
+    var d=document.createElement("div"); d.className="ki";
+    d.innerHTML='<i style="background:'+p.col+'"></i>'+p.label;
+    k.appendChild(d);
+  });
+})();
+
+/* ============================================================
+   DEMO SLIDER — strip before launch.
+   Log scale from 300 to a million, so the early campaign gets as
+   much of the track as the end does. Setting TOTAL and rebuilding
+   is all it takes: the cloth derives its stitch count from it.
+   ============================================================ */
+(function(){
+  var sl=document.getElementById("sl"), out=document.getElementById("slv"),
+      box=document.getElementById("demo"), hide=document.getElementById("slHide");
+  if(!sl) return;
+  function toVoices(v){
+    var lo=Math.log(300), hi=Math.log(1000000);
+    return Math.round(Math.exp(lo+(hi-lo)*(v/1000)));
+  }
+  sl.oninput=function(){
+    TOTAL=toVoices(+this.value);
+    out.textContent=TOTAL.toLocaleString("en-IN");
+    shownNow(TOTAL);            /* jump the counter, no roll while dragging */
+    live=[]; build();
+  };
+  hide.onclick=function(){ box.style.display="none"; };
+  TOTAL=toVoices(+sl.value);
+  out.textContent=TOTAL.toLocaleString("en-IN");
+})();
+
+(function(){
+  var seg=document.getElementById("pseg");
+  if(!seg) return;
+  seg.addEventListener("click",function(e){
+    var b=e.target.closest("button"); if(!b) return;
+    PASSES=+b.dataset.p;
+    Array.prototype.forEach.call(seg.querySelectorAll("button"),function(x){
+      x.setAttribute("aria-pressed", x===b ? "true" : "false");
+    });
+    live=[]; build();
+  });
+})();
+
+rebuild(); build();
+
+/* Phones change the viewport as the address bar collapses, and rotate.
+   Rebuilding on the canvas's own box is steadier than a resize event. */
+if(window.ResizeObserver){
+  var lastW=0,lastH=0,ro=new ResizeObserver(function(){
+    var w=Math.round(cv.clientWidth), h=Math.round(cv.clientHeight);
+    if(!w||!h) return;
+    if(Math.abs(w-lastW)<2 && Math.abs(h-lastH)<2) return;
+    lastW=w; lastH=h; live=[]; build();
+  });
+  ro.observe(cv);
+}
+timer=setTimeout(surface,1200);
+var rt;
+window.addEventListener("resize",function(){
+  clearTimeout(rt);
+  rt=setTimeout(function(){ live=[]; build(); },170);
+});
+})();
+</script>
+</body>
+</html>
